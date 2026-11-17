@@ -1,0 +1,6 @@
+{
+  "name": "GT Battle — Free Fire Tournaments",
+  "description": "Competitive Free Fire tournament arena with live match lobbies, room credentials, player wallets, AI creative studio, and an exclusive owner control panel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,349 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Player tournament profile, wallet coin balances (10 coins = 1 rupee), and notification preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "ffIgn": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "ffUid": { "type": "string", "minLength": 0, "maxLength": 30 },
+        "photoUrl": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "winningCoins": { "type": "number" },
+        "addedCoins": { "type": "number" },
+        "bonusCoins": { "type": "number" },
+        "totalKills": { "type": "number" },
+        "matchesPlayed": { "type": "number" },
+        "notifyMatchStart": { "type": "boolean" },
+        "notifyRoomCredentials": { "type": "boolean" },
+        "referralCode": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[0-9]{6}$" },
+        "referredByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "referredByCode": { "type": "string", "minLength": 3, "maxLength": 20 },
+        "referralCount": { "type": "number" },
+        "referralEarningsCoins": { "type": "number" },
+        "lastBonusCode": { "type": "string", "minLength": 3, "maxLength": 20 },
+        "lastJoinedTournamentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "isBanned": { "type": "boolean" },
+        "banReason": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "bannedAt": { "type": "string", "format": "date-time" },
+        "bannedByReportId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "winningCoins", "bonusCoins", "totalKills", "matchesPlayed", "notifyMatchStart", "notifyRoomCredentials", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII record for the player's verified email address.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public tournament ranking entry without PII.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "ffIgn": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "totalKills": { "type": "number" },
+        "matchesPlayed": { "type": "number" },
+        "totalWinningsCoins": { "type": "number" },
+        "isPublic": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "totalKills", "matchesPlayed", "totalWinningsCoins", "isPublic", "updatedAt"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Free Fire tournament listing with map, mode, prize pool, and capacity.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 3, "maxLength": 100 },
+        "gameMode": { "type": "string", "enum": ["Solo", "Duo", "Squad"] },
+        "mapName": { "type": "string", "enum": ["Bermuda", "Purgatory", "Kalahari", "Nexterra", "Clash Squad"] },
+        "scheduledAt": { "type": "string", "minLength": 4, "maxLength": 80 },
+        "prizePool": { "type": "number" },
+        "perKill": { "type": "number" },
+        "entryFee": { "type": "number" },
+        "maxSpots": { "type": "number" },
+        "joinedCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["upcoming", "live", "completed"] },
+        "streamUrl": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "winnerSummary": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "isPublic": { "type": "boolean" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "gameMode", "mapName", "scheduledAt", "prizePool", "perKill", "entryFee", "maxSpots", "joinedCount", "status", "isPublic", "ownerId", "createdAt", "updatedAt"]
+    },
+    "TournamentRoomSecret": {
+      "title": "TournamentRoomSecret",
+      "description": "Restricted room ID and password accessible only to joined players and the owner.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roomId": { "type": "string", "minLength": 0, "maxLength": 64 },
+        "roomPassword": { "type": "string", "minLength": 0, "maxLength": 64 },
+        "instructions": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "roomId", "roomPassword", "updatedAt"]
+    },
+    "TournamentRegistration": {
+      "title": "TournamentRegistration",
+      "description": "Player slot registration for a specific Free Fire tournament.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ffIgn": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "ffUid": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "slotNumber": { "type": "number" },
+        "kills": { "type": "number" },
+        "winnings": { "type": "number" },
+        "placement": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "userId", "ffIgn", "ffUid", "slotNumber", "kills", "winnings", "placement", "joinedAt"]
+    },
+    "UserMatchEntry": {
+      "title": "UserMatchEntry",
+      "description": "User-scoped index entry for My Matches.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ffIgn": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "ffUid": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "slotNumber": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "userId", "ffIgn", "ffUid", "slotNumber", "joinedAt"]
+    },
+    "DepositRequest": {
+      "title": "DepositRequest",
+      "description": "Player Add Money deposit request with payment proof screenshot and payer UPI ID (10 coins = 1 rupee).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "amountInr": { "type": "number" },
+        "coins": { "type": "number" },
+        "method": { "type": "string", "enum": ["UPI", "UPI ID", "QR Scan", "GPay / PhonePe", "Card / NetBanking"] },
+        "payerUpiId": { "type": "string", "minLength": 3, "maxLength": 100 },
+        "proofImageUrl": { "type": "string", "minLength": 20, "maxLength": 200000 },
+        "utrRef": { "type": "string", "minLength": 0, "maxLength": 60 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNote": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "amountInr", "coins", "method", "payerUpiId", "proofImageUrl", "status", "createdAt", "updatedAt"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "Player coin withdrawal request via UPI ID, QR Code, IMPS bank transfer, or Redeem Code (10 coins = 1 rupee).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["UPI", "QR Code", "IMPS", "Redeem Code"] },
+        "destination": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "qrImageUrl": { "type": "string", "minLength": 0, "maxLength": 200000 },
+        "impsAccountHolder": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "impsAccountNumber": { "type": "string", "minLength": 0, "maxLength": 30 },
+        "impsIfsc": { "type": "string", "minLength": 0, "maxLength": 20 },
+        "impsBankName": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNote": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "amount", "method", "destination", "status", "createdAt", "updatedAt"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global platform configuration, owner payment QR/UPI, and social links managed by the owner.",
+      "type": "object",
+      "properties": {
+        "announcementTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "announcementSubtitle": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "bannerImageUrl": { "type": "string", "minLength": 0, "maxLength": 200000 },
+        "ownerUpiId": { "type": "string", "minLength": 0, "maxLength": 100 },
+        "ownerQrCodeUrl": { "type": "string", "minLength": 0, "maxLength": 200000 },
+        "ownerPaymentNote": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "howToWorkText": { "type": "string", "minLength": 0, "maxLength": 1200 },
+        "facebookUrl": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "instagramUrl": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "whatsappUrl": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "telegramUrl": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "youtubeUrl": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "playStoreUrl": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "supportEmail": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "supportPhone": { "type": "string", "minLength": 0, "maxLength": 30 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["announcementTitle", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Owner/Admin registry record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["owner"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "ReferralCode": {
+      "title": "ReferralCode",
+      "description": "6-digit player refer code (2-coin signup bonus) or owner-created bonus refer code with configurable coin value.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[A-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["player", "owner"] },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "coinValue": { "type": "number" },
+        "referrerBonusCoins": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "usesCount": { "type": "number" },
+        "maxUses": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "type", "ownerUid", "ownerName", "coinValue", "referrerBonusCoins", "isActive", "usesCount", "maxUses", "createdAt", "updatedAt"]
+    },
+    "ReferralRedemption": {
+      "title": "ReferralRedemption",
+      "description": "Immutable redemption ledger entry preventing duplicate claims of referral or bonus codes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 5, "maxLength": 160, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "redeemerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[A-Z0-9_\\-]+$" },
+        "codeType": { "type": "string", "enum": ["player", "owner"] },
+        "referrerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rewardCoins": { "type": "number" },
+        "referrerCoins": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "redeemerUid", "code", "codeType", "referrerUid", "rewardCoins", "referrerCoins", "createdAt"]
+    },
+    "HackerReport": {
+      "title": "HackerReport",
+      "description": "Player-submitted or owner-logged hacker report with uploaded photo or video proof for review and banning.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reporterUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reporterName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "suspectUserId": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "suspectIgn": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "suspectFfUid": { "type": "string", "minLength": 0, "maxLength": 30 },
+        "tournamentId": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "tournamentTitle": { "type": "string", "minLength": 0, "maxLength": 100 },
+        "hackType": { "type": "string", "enum": ["Aimbot / Headshot", "Wallhack / ESP", "Speed / Fly Hack", "Damage / Ammo Hack", "Teaming / Ghosting", "Other"] },
+        "description": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "evidenceType": { "type": "string", "enum": ["image", "video", "none"] },
+        "evidenceUrl": { "type": "string", "minLength": 0, "maxLength": 700000 },
+        "evidenceLink": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "status": { "type": "string", "enum": ["pending", "confirmed_banned", "dismissed"] },
+        "adminNote": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "reviewedByUid": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "reporterUid", "reporterName", "suspectIgn", "hackType", "evidenceType", "status", "createdAt", "updatedAt"]
+    },
+    "BannedFfUid": {
+      "title": "BannedFfUid",
+      "description": "Blacklisted Free Fire UID record created when the owner bans a confirmed hacker.",
+      "type": "object",
+      "properties": {
+        "ffUid": { "type": "string", "minLength": 1, "maxLength": 30, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "suspectIgn": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "userId": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "reportId": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "bannedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ffUid", "suspectIgn", "reason", "bannedByUid", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Player public/wallet profile restricted to self or owner."
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII email record restricted to self or owner."
+    },
+    "/users/{userId}/myMatches/{tournamentId}": {
+      "schema": { "$ref": "#/entities/UserMatchEntry" },
+      "description": "Player's joined matches index."
+    },
+    "/leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Public player leaderboard stats without PII."
+    },
+    "/tournaments/{tournamentId}": {
+      "schema": { "$ref": "#/entities/Tournament" },
+      "description": "Tournament catalog readable by authenticated players and manageable by owner."
+    },
+    "/tournaments/{tournamentId}/secrets/room": {
+      "schema": { "$ref": "#/entities/TournamentRoomSecret" },
+      "description": "Match Room ID and Password restricted to registered players and owner."
+    },
+    "/tournaments/{tournamentId}/registrations/{userId}": {
+      "schema": { "$ref": "#/entities/TournamentRegistration" },
+      "description": "Player registration and match result stats for a tournament."
+    },
+    "/deposits/{depositId}": {
+      "schema": { "$ref": "#/entities/DepositRequest" },
+      "description": "Player Add Money deposit requests."
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "$ref": "#/entities/WithdrawalRequest" },
+      "description": "Coin withdrawal requests submitted by players."
+    },
+    "/siteSettings/config": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Owner-configured global tournament portal settings."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Owner bootstrap record."
+    },
+    "/referralCodes/{code}": {
+      "schema": { "$ref": "#/entities/ReferralCode" },
+      "description": "Player 6-digit referral codes and owner-created custom bonus codes."
+    },
+    "/referralRedemptions/{redemptionId}": {
+      "schema": { "$ref": "#/entities/ReferralRedemption" },
+      "description": "Referral and bonus code redemption records scoped by redeemer."
+    },
+    "/hackerReports/{reportId}": {
+      "schema": { "$ref": "#/entities/HackerReport" },
+      "description": "Hacker reports with uploaded photo or video evidence reviewed by the owner."
+    },
+    "/bannedFfUids/{ffUid}": {
+      "schema": { "$ref": "#/entities/BannedFfUid" },
+      "description": "Blacklisted Free Fire UIDs banned by the owner."
+    }
+  }
+}

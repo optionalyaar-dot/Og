@@ -1,0 +1,828 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isOwner() {
+      return isVerified()
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'optionalyaar@gmail.com';
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'winningCoins', 'bonusCoins',
+          'totalKills', 'matchesPlayed', 'notifyMatchStart',
+          'notifyRoomCredentials', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'ffIgn', 'ffUid', 'photoUrl',
+          'winningCoins', 'addedCoins', 'bonusCoins', 'totalKills', 'matchesPlayed',
+          'notifyMatchStart', 'notifyRoomCredentials',
+          'referralCode', 'referredByUid', 'referredByCode', 'referralCount', 'referralEarningsCoins', 'lastBonusCode', 'lastJoinedTournamentId',
+          'isBanned', 'banReason', 'bannedAt', 'bannedByReportId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+        && (!('ffIgn' in data) || (data.ffIgn is string && data.ffIgn.size() <= 40))
+        && (!('ffUid' in data) || (data.ffUid is string && data.ffUid.size() <= 30))
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 500))
+        && data.winningCoins is number && data.winningCoins >= 0 && data.winningCoins <= 10000000
+        && (!('addedCoins' in data) || (data.addedCoins is number && data.addedCoins >= 0 && data.addedCoins <= 10000000))
+        && data.bonusCoins is number && data.bonusCoins >= 0 && data.bonusCoins <= 10000000
+        && data.totalKills is number && data.totalKills >= 0 && data.totalKills <= 100000
+        && data.matchesPlayed is number && data.matchesPlayed >= 0 && data.matchesPlayed <= 100000
+        && data.notifyMatchStart is bool
+        && data.notifyRoomCredentials is bool
+        && (!('referralCode' in data) || (data.referralCode is string && data.referralCode.size() == 6 && data.referralCode.matches('^[0-9]{6}$')))
+        && (!('referredByUid' in data) || (data.referredByUid is string && data.referredByUid.size() <= 128))
+        && (!('referredByCode' in data) || (data.referredByCode is string && data.referredByCode.size() <= 20))
+        && (!('referralCount' in data) || (data.referralCount is number && data.referralCount >= 0 && data.referralCount <= 100000))
+        && (!('referralEarningsCoins' in data) || (data.referralEarningsCoins is number && data.referralEarningsCoins >= 0 && data.referralEarningsCoins <= 10000000))
+        && (!('lastBonusCode' in data) || (data.lastBonusCode is string && data.lastBonusCode.size() <= 20))
+        && (!('lastJoinedTournamentId' in data) || isValidId(data.lastJoinedTournamentId))
+        && (!('isBanned' in data) || data.isBanned is bool)
+        && (!('banReason' in data) || (data.banReason is string && data.banReason.size() <= 300))
+        && (!('bannedAt' in data) || data.bannedAt is timestamp)
+        && (!('bannedByReportId' in data) || isValidId(data.bannedByReportId))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'updatedAt'])
+        && data.uid is string && data.uid == userId
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'totalKills', 'matchesPlayed',
+          'totalWinningsCoins', 'isPublic', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'ffIgn', 'totalKills', 'matchesPlayed',
+          'totalWinningsCoins', 'isPublic', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+        && (!('ffIgn' in data) || (data.ffIgn is string && data.ffIgn.size() <= 40))
+        && data.totalKills is number && data.totalKills >= 0 && data.totalKills <= 100000
+        && data.matchesPlayed is number && data.matchesPlayed >= 0 && data.matchesPlayed <= 100000
+        && data.totalWinningsCoins is number && data.totalWinningsCoins >= 0 && data.totalWinningsCoins <= 10000000
+        && data.isPublic == true
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTournament(data, tournamentId) {
+      return data.keys().hasAll([
+          'id', 'title', 'gameMode', 'mapName', 'scheduledAt',
+          'prizePool', 'perKill', 'entryFee', 'maxSpots', 'joinedCount',
+          'status', 'isPublic', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'title', 'gameMode', 'mapName', 'scheduledAt',
+          'prizePool', 'perKill', 'entryFee', 'maxSpots', 'joinedCount',
+          'status', 'streamUrl', 'winnerSummary', 'isPublic', 'ownerId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == tournamentId
+        && data.title is string && data.title.size() >= 3 && data.title.size() <= 100
+        && data.gameMode in ['Solo', 'Duo', 'Squad']
+        && data.mapName in ['Bermuda', 'Purgatory', 'Kalahari', 'Nexterra', 'Clash Squad']
+        && data.scheduledAt is string && data.scheduledAt.size() >= 4 && data.scheduledAt.size() <= 80
+        && data.prizePool is number && data.prizePool >= 0 && data.prizePool <= 10000000
+        && data.perKill is number && data.perKill >= 0 && data.perKill <= 100000
+        && data.entryFee is number && data.entryFee >= 0 && data.entryFee <= 100000
+        && data.maxSpots is number && data.maxSpots >= 2 && data.maxSpots <= 1000
+        && data.joinedCount is number && data.joinedCount >= 0 && data.joinedCount <= data.maxSpots
+        && data.status in ['upcoming', 'live', 'completed']
+        && (!('streamUrl' in data) || (data.streamUrl is string && data.streamUrl.size() <= 300))
+        && (!('winnerSummary' in data) || (data.winnerSummary is string && data.winnerSummary.size() <= 500))
+        && data.isPublic == true
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomSecret(data, tournamentId) {
+      return data.keys().hasAll(['tournamentId', 'roomId', 'roomPassword', 'updatedAt'])
+        && data.keys().hasOnly(['tournamentId', 'roomId', 'roomPassword', 'instructions', 'updatedAt'])
+        && data.tournamentId is string && data.tournamentId == tournamentId
+        && data.roomId is string && data.roomId.size() <= 64
+        && data.roomPassword is string && data.roomPassword.size() <= 64
+        && (!('instructions' in data) || (data.instructions is string && data.instructions.size() <= 300))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRegistration(data, tournamentId, userId) {
+      return data.keys().hasAll([
+          'tournamentId', 'userId', 'ffIgn', 'ffUid',
+          'slotNumber', 'kills', 'winnings', 'placement', 'joinedAt'
+        ])
+        && data.keys().hasOnly([
+          'tournamentId', 'userId', 'ffIgn', 'ffUid',
+          'slotNumber', 'kills', 'winnings', 'placement', 'joinedAt'
+        ])
+        && data.tournamentId is string && data.tournamentId == tournamentId
+        && data.userId is string && data.userId == userId
+        && data.ffIgn is string && data.ffIgn.size() >= 1 && data.ffIgn.size() <= 40
+        && data.ffUid is string && data.ffUid.size() >= 1 && data.ffUid.size() <= 30
+        && data.slotNumber is number && data.slotNumber >= 1 && data.slotNumber <= 1000
+        && data.kills is number && data.kills >= 0 && data.kills <= 100
+        && data.winnings is number && data.winnings >= 0 && data.winnings <= 10000000
+        && data.placement is number && data.placement >= 0 && data.placement <= 1000
+        && data.joinedAt is timestamp;
+    }
+
+    function isValidUserMatchEntry(data, userId, tournamentId) {
+      return data.keys().hasAll(['tournamentId', 'userId', 'ffIgn', 'ffUid', 'slotNumber', 'joinedAt'])
+        && data.keys().hasOnly(['tournamentId', 'userId', 'ffIgn', 'ffUid', 'slotNumber', 'joinedAt'])
+        && data.tournamentId is string && data.tournamentId == tournamentId
+        && data.userId is string && data.userId == userId
+        && data.ffIgn is string && data.ffIgn.size() >= 1 && data.ffIgn.size() <= 40
+        && data.ffUid is string && data.ffUid.size() >= 1 && data.ffUid.size() <= 30
+        && data.slotNumber is number && data.slotNumber >= 1 && data.slotNumber <= 1000
+        && data.joinedAt is timestamp;
+    }
+
+    function isValidDeposit(data, depositId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'amountInr', 'coins', 'method',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userId', 'amountInr', 'coins', 'method',
+          'payerUpiId', 'proofImageUrl', 'utrRef', 'status', 'adminNote', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == depositId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.amountInr is number && data.amountInr >= 1 && data.amountInr <= 50000
+        && data.coins is number && data.coins == data.amountInr * 10
+        && data.method in ['UPI', 'UPI ID', 'QR Scan', 'GPay / PhonePe', 'Card / NetBanking']
+        && (!('payerUpiId' in data) || (data.payerUpiId is string && data.payerUpiId.size() <= 100))
+        && (!('proofImageUrl' in data) || (data.proofImageUrl is string && data.proofImageUrl.size() <= 200000))
+        && (!('utrRef' in data) || (data.utrRef is string && data.utrRef.size() <= 60))
+        && data.status in ['pending', 'approved', 'rejected']
+        && (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 200))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWithdrawal(data, withdrawalId) {
+      return data.keys().hasAll(['id', 'userId', 'amount', 'method', 'destination', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'userId', 'amount', 'method', 'destination',
+          'qrImageUrl', 'impsAccountHolder', 'impsAccountNumber', 'impsIfsc', 'impsBankName',
+          'status', 'adminNote', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == withdrawalId
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.amount is number && data.amount >= 100 && data.amount <= 1000000
+        && data.method in ['UPI', 'QR Code', 'IMPS', 'Redeem Code']
+        && data.destination is string && data.destination.size() >= 3 && data.destination.size() <= 160
+        && (!('qrImageUrl' in data) || (data.qrImageUrl is string && data.qrImageUrl.size() <= 200000))
+        && (!('impsAccountHolder' in data) || (data.impsAccountHolder is string && data.impsAccountHolder.size() <= 80))
+        && (!('impsAccountNumber' in data) || (data.impsAccountNumber is string && data.impsAccountNumber.size() <= 30))
+        && (!('impsIfsc' in data) || (data.impsIfsc is string && data.impsIfsc.size() <= 20))
+        && (!('impsBankName' in data) || (data.impsBankName is string && data.impsBankName.size() <= 80))
+        && (data.method != 'QR Code' || ('qrImageUrl' in data && data.qrImageUrl.size() >= 20))
+        && (data.method != 'IMPS' || (
+          'impsAccountHolder' in data && data.impsAccountHolder.size() >= 2
+          && 'impsAccountNumber' in data && data.impsAccountNumber.size() >= 6
+          && 'impsIfsc' in data && data.impsIfsc.size() >= 8
+        ))
+        && data.status in ['pending', 'approved', 'rejected']
+        && (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 200))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSiteSettings(data) {
+      return data.keys().hasAll(['announcementTitle', 'updatedAt'])
+        && data.keys().hasOnly([
+          'announcementTitle', 'announcementSubtitle', 'bannerImageUrl',
+          'ownerUpiId', 'ownerQrCodeUrl', 'ownerPaymentNote',
+          'howToWorkText', 'facebookUrl', 'instagramUrl', 'whatsappUrl',
+          'telegramUrl', 'youtubeUrl', 'playStoreUrl', 'supportEmail', 'supportPhone', 'updatedAt'
+        ])
+        && data.announcementTitle is string && data.announcementTitle.size() >= 1 && data.announcementTitle.size() <= 100
+        && (!('announcementSubtitle' in data) || (data.announcementSubtitle is string && data.announcementSubtitle.size() <= 200))
+        && (!('bannerImageUrl' in data) || (data.bannerImageUrl is string && data.bannerImageUrl.size() <= 200000))
+        && (!('ownerUpiId' in data) || (data.ownerUpiId is string && data.ownerUpiId.size() <= 100))
+        && (!('ownerQrCodeUrl' in data) || (data.ownerQrCodeUrl is string && data.ownerQrCodeUrl.size() <= 200000))
+        && (!('ownerPaymentNote' in data) || (data.ownerPaymentNote is string && data.ownerPaymentNote.size() <= 200))
+        && (!('howToWorkText' in data) || (data.howToWorkText is string && data.howToWorkText.size() <= 1200))
+        && (!('facebookUrl' in data) || (data.facebookUrl is string && data.facebookUrl.size() <= 250))
+        && (!('instagramUrl' in data) || (data.instagramUrl is string && data.instagramUrl.size() <= 250))
+        && (!('whatsappUrl' in data) || (data.whatsappUrl is string && data.whatsappUrl.size() <= 250))
+        && (!('telegramUrl' in data) || (data.telegramUrl is string && data.telegramUrl.size() <= 250))
+        && (!('youtubeUrl' in data) || (data.youtubeUrl is string && data.youtubeUrl.size() <= 250))
+        && (!('playStoreUrl' in data) || (data.playStoreUrl is string && data.playStoreUrl.size() <= 250))
+        && (!('supportEmail' in data) || (data.supportEmail is string && data.supportEmail.size() <= 120))
+        && (!('supportPhone' in data) || (data.supportPhone is string && data.supportPhone.size() <= 30))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data, userId) {
+      return data.keys().hasAll(['uid', 'role', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'role', 'createdAt'])
+        && data.uid is string && data.uid == userId
+        && data.role == 'owner'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidReferralCode(data, codeId) {
+      return data.keys().hasAll([
+          'code', 'type', 'ownerUid', 'ownerName', 'coinValue',
+          'referrerBonusCoins', 'isActive', 'usesCount', 'maxUses',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'code', 'type', 'ownerUid', 'ownerName', 'coinValue',
+          'referrerBonusCoins', 'isActive', 'usesCount', 'maxUses',
+          'createdAt', 'updatedAt'
+        ])
+        && data.code is string && data.code == codeId
+        && data.code.size() >= 3 && data.code.size() <= 20
+        && data.code.matches('^[A-Z0-9_\\-]+$')
+        && data.type in ['player', 'owner']
+        && data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 60
+        && data.coinValue is number && data.coinValue >= 1 && data.coinValue <= 100000
+        && data.referrerBonusCoins is number && data.referrerBonusCoins >= 0 && data.referrerBonusCoins <= 100000
+        && data.isActive is bool
+        && data.usesCount is number && data.usesCount >= 0 && data.usesCount <= 10000000
+        && data.maxUses is number && data.maxUses >= 0 && data.maxUses <= 10000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReferralRedemption(data, redemptionId) {
+      return data.keys().hasAll([
+          'id', 'redeemerUid', 'code', 'codeType', 'referrerUid',
+          'rewardCoins', 'referrerCoins', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'redeemerUid', 'code', 'codeType', 'referrerUid',
+          'rewardCoins', 'referrerCoins', 'createdAt'
+        ])
+        && data.id is string && data.id == redemptionId
+        && data.id.size() >= 5 && data.id.size() <= 160
+        && data.redeemerUid is string && data.redeemerUid.size() >= 1 && data.redeemerUid.size() <= 128
+        && data.code is string && data.code.size() >= 3 && data.code.size() <= 20
+        && data.codeType in ['player', 'owner']
+        && data.referrerUid is string && data.referrerUid.size() >= 1 && data.referrerUid.size() <= 128
+        && data.rewardCoins is number && data.rewardCoins >= 1 && data.rewardCoins <= 100000
+        && data.referrerCoins is number && data.referrerCoins >= 0 && data.referrerCoins <= 100000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidHackerReport(data, reportId) {
+      return data.keys().hasAll([
+          'id', 'reporterUid', 'reporterName', 'suspectIgn',
+          'hackType', 'evidenceType', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'reporterUid', 'reporterName', 'suspectUserId', 'suspectIgn', 'suspectFfUid',
+          'tournamentId', 'tournamentTitle', 'hackType', 'description',
+          'evidenceType', 'evidenceUrl', 'evidenceLink', 'status', 'adminNote', 'reviewedByUid',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == reportId
+        && data.reporterUid is string && data.reporterUid.size() >= 1 && data.reporterUid.size() <= 128
+        && data.reporterName is string && data.reporterName.size() >= 1 && data.reporterName.size() <= 60
+        && (!('suspectUserId' in data) || (data.suspectUserId is string && data.suspectUserId.size() <= 128))
+        && data.suspectIgn is string && data.suspectIgn.size() >= 1 && data.suspectIgn.size() <= 40
+        && (!('suspectFfUid' in data) || (data.suspectFfUid is string && data.suspectFfUid.size() <= 30))
+        && (!('tournamentId' in data) || (data.tournamentId is string && data.tournamentId.size() <= 128))
+        && (!('tournamentTitle' in data) || (data.tournamentTitle is string && data.tournamentTitle.size() <= 100))
+        && data.hackType in ['Aimbot / Headshot', 'Wallhack / ESP', 'Speed / Fly Hack', 'Damage / Ammo Hack', 'Teaming / Ghosting', 'Other']
+        && (!('description' in data) || (data.description is string && data.description.size() <= 600))
+        && data.evidenceType in ['image', 'video', 'none']
+        && (!('evidenceUrl' in data) || (data.evidenceUrl is string && data.evidenceUrl.size() <= 700000))
+        && (!('evidenceLink' in data) || (data.evidenceLink is string && data.evidenceLink.size() <= 300))
+        && (
+          (data.evidenceType in ['image', 'video'] && 'evidenceUrl' in data && data.evidenceUrl.size() >= 20)
+          || (data.evidenceType == 'none' && 'evidenceLink' in data && data.evidenceLink.size() >= 8)
+        )
+        && data.status in ['pending', 'confirmed_banned', 'dismissed']
+        && (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 300))
+        && (!('reviewedByUid' in data) || (data.reviewedByUid is string && data.reviewedByUid.size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBannedFfUid(data, ffUid) {
+      return data.keys().hasAll([
+          'ffUid', 'suspectIgn', 'reason', 'bannedByUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ffUid', 'suspectIgn', 'userId', 'reason', 'reportId', 'bannedByUid', 'createdAt', 'updatedAt'
+        ])
+        && data.ffUid is string && data.ffUid == ffUid && data.ffUid.size() >= 1 && data.ffUid.size() <= 30
+        && data.suspectIgn is string && data.suspectIgn.size() >= 1 && data.suspectIgn.size() <= 40
+        && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 300
+        && (!('reportId' in data) || (data.reportId is string && data.reportId.size() <= 128))
+        && data.bannedByUid is string && data.bannedByUid.size() >= 1 && data.bannedByUid.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection Match Rules ---
+
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isSelf(userId) || isOwner());
+      allow create, update: if isValidId(userId) && isOwner() && isValidAdminRecord(incoming(), userId);
+      allow delete: if isValidId(userId) && isOwner();
+    }
+
+    match /siteSettings/{docId} {
+      allow get: if isSignedIn() && docId == 'config';
+      allow create, update: if docId == 'config' && isOwner()
+        && isValidSiteSettings(incoming())
+        && incoming().updatedAt == request.time;
+    }
+
+    match /leaderboard/{userId} {
+      allow get: if isValidId(userId) && isSignedIn() && (
+        isSelf(userId) || isOwner() || (resource != null && existing().isPublic == true)
+      );
+      allow list: if isSignedIn() && resource.data.isPublic == true;
+      allow create: if isValidId(userId) && isVerified()
+        && isValidLeaderboardEntry(incoming(), userId)
+        && incoming().updatedAt == request.time
+        && (
+          isOwner()
+          || (isSelf(userId) && incoming().totalKills == 0 && incoming().totalWinningsCoins == 0 && incoming().matchesPlayed == 0)
+        );
+      allow update: if isValidId(userId) && isVerified()
+        && isValidLeaderboardEntry(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && (
+          isOwner()
+          || (
+            isSelf(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'ffIgn', 'matchesPlayed', 'updatedAt'])
+            && incoming().matchesPlayed <= existing().matchesPlayed + 1
+          )
+        );
+      allow delete: if isValidId(userId) && (isSelf(userId) || isOwner());
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isSelf(userId) || isOwner());
+      allow list: if isOwner();
+      allow create: if isValidId(userId) && isSelf(userId) && isVerified()
+        && isValidUserProfile(incoming(), userId)
+        && incoming().winningCoins == 0
+        && (!('addedCoins' in incoming()) || incoming().addedCoins == 0)
+        && incoming().bonusCoins == 0
+        && incoming().totalKills == 0
+        && incoming().matchesPlayed == 0
+        && (!('referralCount' in incoming()) || incoming().referralCount == 0)
+        && (!('referralEarningsCoins' in incoming()) || incoming().referralEarningsCoins == 0)
+        && (!('referredByUid' in incoming()))
+        && (!('referredByCode' in incoming()))
+        && (!('lastBonusCode' in incoming()))
+        && (!('lastJoinedTournamentId' in incoming()))
+        && (!('isBanned' in incoming()))
+        && (!('banReason' in incoming()))
+        && (!('bannedAt' in incoming()))
+        && (!('bannedByReportId' in incoming()))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && isVerified()
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isOwner()
+          || (
+            isSelf(userId) && (
+              // Action: Profile & Settings Update
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'displayName', 'ffIgn', 'ffUid', 'photoUrl',
+                'notifyMatchStart', 'notifyRoomCredentials', 'updatedAt'
+              ])
+              ||
+              // Action: Atomic tournament join (increment matchesPlayed & deduct entryFee if > 0)
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'matchesPlayed', 'addedCoins', 'bonusCoins', 'winningCoins',
+                  'ffIgn', 'ffUid', 'lastJoinedTournamentId', 'updatedAt'
+                ])
+                && incoming().matchesPlayed == existing().matchesPlayed + 1
+                && 'lastJoinedTournamentId' in incoming()
+                && isValidId(incoming().lastJoinedTournamentId)
+                && exists(/databases/$(database)/documents/tournaments/$(incoming().lastJoinedTournamentId))
+                && !exists(/databases/$(database)/documents/tournaments/$(incoming().lastJoinedTournamentId)/registrations/$(userId))
+                && existsAfter(/databases/$(database)/documents/tournaments/$(incoming().lastJoinedTournamentId)/registrations/$(userId))
+                && (
+                  (
+                    'addedCoins' in existing()
+                    && incoming().addedCoins <= existing().addedCoins
+                    && incoming().bonusCoins <= existing().bonusCoins
+                    && incoming().winningCoins <= existing().winningCoins
+                    && (incoming().addedCoins + incoming().bonusCoins + incoming().winningCoins)
+                       == (existing().addedCoins + existing().bonusCoins + existing().winningCoins)
+                          - get(/databases/$(database)/documents/tournaments/$(incoming().lastJoinedTournamentId)).data.entryFee
+                  )
+                  ||
+                  (
+                    !('addedCoins' in existing())
+                    && incoming().addedCoins == 0
+                    && incoming().bonusCoins <= existing().bonusCoins
+                    && incoming().winningCoins <= existing().winningCoins
+                    && (incoming().bonusCoins + incoming().winningCoins)
+                       == (existing().bonusCoins + existing().winningCoins)
+                          - get(/databases/$(database)/documents/tournaments/$(incoming().lastJoinedTournamentId)).data.entryFee
+                  )
+                )
+              )
+              ||
+              // Action: Deduct winningCoins on atomic withdrawal creation (min 1000 coins = Rs 100)
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['winningCoins', 'updatedAt'])
+                && incoming().winningCoins <= existing().winningCoins - 1000
+                && incoming().winningCoins >= 0
+              )
+              ||
+              // Action: Initialize unique 6-digit referralCode once for existing accounts
+              (
+                !('referralCode' in existing())
+                && incoming().diff(existing()).affectedKeys().hasOnly(['referralCode', 'updatedAt'])
+                && incoming().referralCode is string
+                && incoming().referralCode.matches('^[0-9]{6}$')
+                && existsAfter(/databases/$(database)/documents/referralCodes/$(incoming().referralCode))
+              )
+              ||
+              // Action: Claim friend 6-digit signup referral bonus (+2 Bonus Coins, once per account)
+              (
+                !('referredByUid' in existing())
+                && incoming().diff(existing()).affectedKeys().hasOnly(['bonusCoins', 'referredByUid', 'referredByCode', 'updatedAt'])
+                && incoming().bonusCoins == existing().bonusCoins + 2
+                && incoming().referredByUid is string && incoming().referredByUid != userId
+                && incoming().referredByCode is string && incoming().referredByCode.matches('^[0-9]{6}$')
+                && existsAfter(/databases/$(database)/documents/referralRedemptions/$(userId + '__SIGNUP'))
+                && getAfter(/databases/$(database)/documents/referralRedemptions/$(userId + '__SIGNUP')).data.code == incoming().referredByCode
+              )
+              ||
+              // Action: Redeem owner custom bonus code (reward verified atomically via referralRedemptions)
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['bonusCoins', 'lastBonusCode', 'updatedAt'])
+                && incoming().lastBonusCode is string
+                && incoming().lastBonusCode.size() >= 3 && incoming().lastBonusCode.size() <= 20
+                && !exists(/databases/$(database)/documents/referralRedemptions/$(userId + '__' + incoming().lastBonusCode))
+                && existsAfter(/databases/$(database)/documents/referralRedemptions/$(userId + '__' + incoming().lastBonusCode))
+                && getAfter(/databases/$(database)/documents/referralRedemptions/$(userId + '__' + incoming().lastBonusCode)).data.codeType == 'owner'
+                && getAfter(/databases/$(database)/documents/referralRedemptions/$(userId + '__' + incoming().lastBonusCode)).data.rewardCoins
+                   == incoming().bonusCoins - existing().bonusCoins
+              )
+            )
+          )
+          || (
+            // Action: Credit +2 Bonus Coins to referrer during atomic friend referral claim
+            !isSelf(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['bonusCoins', 'referralCount', 'referralEarningsCoins', 'updatedAt'])
+            && incoming().bonusCoins == existing().bonusCoins + 2
+            && (
+              (!('referralCount' in existing()) && incoming().referralCount == 1)
+              || ('referralCount' in existing() && incoming().referralCount == existing().referralCount + 1)
+            )
+            && (
+              (!('referralEarningsCoins' in existing()) && incoming().referralEarningsCoins == 2)
+              || ('referralEarningsCoins' in existing() && incoming().referralEarningsCoins == existing().referralEarningsCoins + 2)
+            )
+            && existsAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__SIGNUP'))
+            && getAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__SIGNUP')).data.referrerUid == userId
+            && getAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__SIGNUP')).data.codeType == 'player'
+          )
+        );
+      allow delete: if isValidId(userId) && (isSelf(userId) || isOwner());
+
+      match /private/{docId} {
+        allow get: if isValidId(userId) && docId == 'info' && (isSelf(userId) || isOwner());
+        allow create, update: if isValidId(userId) && docId == 'info' && isSelf(userId) && isVerified()
+          && isValidUserPrivateInfo(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow delete: if isValidId(userId) && docId == 'info' && (isSelf(userId) || isOwner());
+      }
+
+      match /myMatches/{tournamentId} {
+        allow get: if isValidId(userId) && isValidId(tournamentId) && (isSelf(userId) || isOwner());
+        allow list: if isValidId(userId) && (isSelf(userId) || isOwner());
+        allow create: if isValidId(userId) && isValidId(tournamentId) && isSelf(userId) && isVerified()
+          && isValidUserMatchEntry(incoming(), userId, tournamentId)
+          && incoming().joinedAt == request.time
+          && existsAfter(/databases/$(database)/documents/tournaments/$(tournamentId)/registrations/$(userId));
+        allow delete: if isValidId(userId) && isValidId(tournamentId) && isOwner();
+      }
+    }
+
+    match /tournaments/{tournamentId} {
+      allow get: if isValidId(tournamentId) && isSignedIn() && (
+        isOwner() || resource == null || existing().isPublic == true
+      );
+      allow list: if isSignedIn() && resource.data.isPublic == true;
+      allow create: if isValidId(tournamentId) && isOwner()
+        && isValidTournament(incoming(), tournamentId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().joinedCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(tournamentId) && isVerified()
+        && isValidTournament(incoming(), tournamentId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isOwner()
+          ||
+          (
+            existing().status == 'upcoming'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['joinedCount', 'updatedAt'])
+            && incoming().joinedCount == existing().joinedCount + 1
+            && incoming().joinedCount <= existing().maxSpots
+            && !exists(/databases/$(database)/documents/tournaments/$(tournamentId)/registrations/$(request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/tournaments/$(tournamentId)/registrations/$(request.auth.uid))
+          )
+        );
+      allow delete: if isValidId(tournamentId) && isOwner();
+
+      match /secrets/{docId} {
+        allow get: if isValidId(tournamentId) && docId == 'room' && isVerified() && (
+          isOwner()
+          || exists(/databases/$(database)/documents/tournaments/$(tournamentId)/registrations/$(request.auth.uid))
+        );
+        allow create, update: if isValidId(tournamentId) && docId == 'room' && isOwner()
+          && isValidRoomSecret(incoming(), tournamentId)
+          && incoming().updatedAt == request.time;
+        allow delete: if isValidId(tournamentId) && docId == 'room' && isOwner();
+      }
+
+      match /registrations/{userId} {
+        allow get: if isValidId(tournamentId) && isValidId(userId) && (isSelf(userId) || isOwner());
+        allow list: if isValidId(tournamentId) && isSignedIn() && (
+          isOwner() || resource.data.userId == request.auth.uid
+        );
+        allow create: if isValidId(tournamentId) && isValidId(userId) && isSelf(userId) && isVerified()
+          && isValidRegistration(incoming(), tournamentId, userId)
+          && incoming().kills == 0
+          && incoming().winnings == 0
+          && incoming().placement == 0
+          && incoming().joinedAt == request.time
+          && exists(/databases/$(database)/documents/tournaments/$(tournamentId))
+          && get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.status == 'upcoming'
+          && getAfter(/databases/$(database)/documents/tournaments/$(tournamentId)).data.joinedCount
+             == get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.joinedCount + 1
+          && !('isBanned' in get(/databases/$(database)/documents/users/$(userId)).data && get(/databases/$(database)/documents/users/$(userId)).data.isBanned == true)
+          && !exists(/databases/$(database)/documents/bannedFfUids/$(incoming().ffUid))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.matchesPlayed
+             == get(/databases/$(database)/documents/users/$(userId)).data.matchesPlayed + 1
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.lastJoinedTournamentId == tournamentId;
+        allow update: if isValidId(tournamentId) && isValidId(userId) && isOwner()
+          && isValidRegistration(incoming(), tournamentId, userId)
+          && incoming().tournamentId == existing().tournamentId
+          && incoming().userId == existing().userId
+          && incoming().joinedAt == existing().joinedAt;
+        allow delete: if isValidId(tournamentId) && isValidId(userId) && isOwner();
+      }
+    }
+
+    match /deposits/{depositId} {
+      allow get: if isValidId(depositId) && isSignedIn() && (
+        isOwner() || (resource != null && existing().userId == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        isOwner() || resource.data.userId == request.auth.uid
+      );
+      allow create: if isValidId(depositId) && isVerified()
+        && isValidDeposit(incoming(), depositId)
+        && 'payerUpiId' in incoming() && incoming().payerUpiId.size() >= 3
+        && 'proofImageUrl' in incoming() && incoming().proofImageUrl.size() >= 20
+        && incoming().userId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(depositId) && isOwner()
+        && isValidDeposit(incoming(), depositId)
+        && existing().status == 'pending'
+        && incoming().status in ['approved', 'rejected']
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt'])
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(depositId) && isOwner();
+    }
+
+    match /withdrawals/{withdrawalId} {
+      allow get: if isValidId(withdrawalId) && isSignedIn() && (
+        isOwner() || (resource != null && existing().userId == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        isOwner() || resource.data.userId == request.auth.uid
+      );
+      allow create: if isValidId(withdrawalId) && isVerified()
+        && isValidWithdrawal(incoming(), withdrawalId)
+        && incoming().userId == request.auth.uid
+        && incoming().amount >= 1000
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.winningCoins
+           == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.winningCoins - incoming().amount;
+      allow update: if isValidId(withdrawalId) && isOwner()
+        && isValidWithdrawal(incoming(), withdrawalId)
+        && existing().status == 'pending'
+        && incoming().status in ['approved', 'rejected']
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt'])
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(withdrawalId) && isOwner();
+    }
+
+    match /referralCodes/{code} {
+      allow get: if isValidId(code) && isSignedIn();
+      allow list: if isSignedIn() && (isOwner() || resource.data.ownerUid == request.auth.uid);
+      allow create: if isValidId(code) && isVerified()
+        && isValidReferralCode(incoming(), code)
+        && incoming().usesCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isOwner()
+            && incoming().type == 'owner'
+            && incoming().ownerUid == request.auth.uid
+            && incoming().referrerBonusCoins == 0
+          )
+          ||
+          (
+            incoming().type == 'player'
+            && incoming().ownerUid == request.auth.uid
+            && code.matches('^[0-9]{6}$')
+            && incoming().coinValue == 2
+            && incoming().referrerBonusCoins == 2
+            && incoming().isActive == true
+            && incoming().maxUses == 0
+          )
+        );
+      allow update: if isValidId(code) && isVerified()
+        && isValidReferralCode(incoming(), code)
+        && incoming().code == existing().code
+        && incoming().type == existing().type
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isOwner()
+          || (
+            incoming().diff(existing()).affectedKeys().hasOnly(['usesCount', 'updatedAt'])
+            && incoming().usesCount == existing().usesCount + 1
+            && existing().isActive == true
+            && (existing().maxUses == 0 || existing().usesCount < existing().maxUses)
+            && (
+              (
+                existing().type == 'player'
+                && existsAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__SIGNUP'))
+                && getAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__SIGNUP')).data.code == code
+              )
+              ||
+              (
+                existing().type == 'owner'
+                && existsAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__' + code))
+                && getAfter(/databases/$(database)/documents/referralRedemptions/$(request.auth.uid + '__' + code)).data.code == code
+              )
+            )
+          )
+        );
+      allow delete: if isValidId(code) && isOwner();
+    }
+
+    match /referralRedemptions/{redemptionId} {
+      allow get: if isValidId(redemptionId) && isSignedIn() && (
+        isOwner()
+        || redemptionId.matches('^' + request.auth.uid + '__[A-Z0-9_\\-]+$')
+        || (resource != null && existing().redeemerUid == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        isOwner() || resource.data.redeemerUid == request.auth.uid
+      );
+      allow create: if isValidId(redemptionId) && isVerified()
+        && isValidReferralRedemption(incoming(), redemptionId)
+        && incoming().redeemerUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/referralCodes/$(incoming().code))
+        && get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.isActive == true
+        && (
+          get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.maxUses == 0
+          || get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.usesCount
+             < get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.maxUses
+        )
+        && incoming().codeType == get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.type
+        && incoming().referrerUid == get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.ownerUid
+        && incoming().rewardCoins == get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.coinValue
+        && incoming().referrerCoins == get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.referrerBonusCoins
+        && (
+          (
+            incoming().codeType == 'player'
+            && redemptionId == request.auth.uid + '__SIGNUP'
+            && incoming().referrerUid != request.auth.uid
+            && incoming().rewardCoins == 2
+            && incoming().referrerCoins == 2
+          )
+          ||
+          (
+            incoming().codeType == 'owner'
+            && redemptionId == request.auth.uid + '__' + incoming().code
+          )
+        )
+        && getAfter(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.usesCount
+           == get(/databases/$(database)/documents/referralCodes/$(incoming().code)).data.usesCount + 1
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.bonusCoins
+           == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.bonusCoins + incoming().rewardCoins;
+      allow delete: if isValidId(redemptionId) && isOwner();
+    }
+
+    match /hackerReports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (
+        isOwner() || (resource != null && existing().reporterUid == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        isOwner() || resource.data.reporterUid == request.auth.uid
+      );
+      allow create: if isValidId(reportId) && isVerified()
+        && isValidHackerReport(incoming(), reportId)
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'pending'
+        && (!('adminNote' in incoming()) || incoming().adminNote == '')
+        && (!('reviewedByUid' in incoming()) || incoming().reviewedByUid == '')
+        && !('isBanned' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == true)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(reportId) && isOwner()
+        && isValidHackerReport(incoming(), reportId)
+        && incoming().id == existing().id
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(reportId) && isOwner();
+    }
+
+    match /bannedFfUids/{ffUid} {
+      allow get: if isValidId(ffUid) && isSignedIn();
+      allow list: if isOwner();
+      allow create: if isValidId(ffUid) && isOwner()
+        && isValidBannedFfUid(incoming(), ffUid)
+        && incoming().bannedByUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(ffUid) && isOwner()
+        && isValidBannedFfUid(incoming(), ffUid)
+        && incoming().ffUid == existing().ffUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(ffUid) && isOwner();
+    }
+  }
+}
